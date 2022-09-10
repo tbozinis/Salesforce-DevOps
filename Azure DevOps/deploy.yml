@@ -1,0 +1,70 @@
+trigger:
+  branches:
+    include:
+      - release/sit
+    exclude:
+      - release/uat
+      - release/devSandbox
+      - feature/*
+      - devops/*
+      - prod
+  paths:
+    include:
+      - force-app/*
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+- checkout: self
+  persistCredentials: true
+
+- script: |
+    echo "Starting pipeline for SIT org!"
+  displayName: 'Starting point'
+
+- script: |
+    echo "INSTALLING WITH NPM"
+    npm install sfdx-cli --global
+  displayName: 'NPM & Dependances initialization'
+
+- script: |
+    sfdx force:auth:jwt:grant --clientid $(salesforceDevOrgClientId) --jwtkeyfile devops/server.key --username $(salesforceDevOrgUserName) --instanceurl $(salesforceDevOrgInstanceURL) -a sitOrg
+  displayName: 'Authorize salesforce org'
+
+- script: |
+    comMes=$(git log -1 --pretty=%B)
+    prNum=$(echo $comMes | grep -o -P "(?<=PR ).*?(?=:)")
+    if [[ -z "$prNum" ]];
+      then
+        echo "Empty PR!"
+        exit 1
+    fi
+    # checkout force because of uncommited files
+    echo " * Git checkout deploy branch"
+    git checkout -f devops/$prNum
+    deployId=$(<$prNum)
+    echo "   - Deploy ID = " $deployId
+    echo " - Done!"
+
+    # quick deploy id and keep logs to file
+    echo " * SFDX Quick deploy"
+    sfdx force:mdapi:deploy -q $deployId -u $(salesforceDevOrgUserName) -w 45 | tee deploy.txt
+    deployTxt=$(sed ':a;N;$!ba;s/\n/ asdf /g' deploy.txt)
+    
+    # check if logs contains any errors
+    if [[ $deployTxt =~ "ERROR" ]];
+      then
+        echo "*** DEPLOY FAILED ***"
+        echo $deployTxt
+        exit 1
+    fi
+    echo " - Done!"
+
+    echo " * Git branch delete"
+    git config --global user.email $(gitEmail)
+    git config --global user.name $(gitName)
+    git push origin --delete devops/$prNum
+    echo " - Done!"
+
+  displayName: 'Check for valid Deploy ID'

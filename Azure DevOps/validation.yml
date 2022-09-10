@@ -1,0 +1,97 @@
+trigger:
+  branches:
+    exclude:
+      - release/*
+      - feature/*
+      - devops/*
+      - prod
+  paths:
+    include:
+      - force-app/*
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+- checkout: self
+  persistCredentials: true
+
+- script: |
+    echo "Starting pipeline for SIT org!"
+  displayName: 'Starting point'
+
+- script: |
+    echo "INSTALLING WITH NPM"
+    npm install sfdx-cli --global
+  displayName: 'NPM & Dependances initialization'
+
+- script: |
+    sfdx force:auth:jwt:grant --clientid $(salesforceDevOrgClientId) --jwtkeyfile devops/server.key --username $(salesforceDevOrgUserName) --instanceurl $(salesforceDevOrgInstanceURL) -a sitOrg
+  displayName: 'Authorize salesforce org'
+
+- script: |
+    sfdx force:source:convert -r ./force-app -d ./toDeploy
+  displayName: 'Convert to deploy source'
+
+- script: |
+    sfdx force:mdapi:deploy -l RunLocalTests -c -d ./toDeploy -u sitOrg -w 45 | tee temp.txt
+    temp=$(sed ':a;N;$!ba;s/\n/ asdf /g' temp.txt)
+    echo $temp
+
+    if grep -q "Component Failures" <<< "$temp";
+      then
+        echo "*** VALIDATION FAILED ***"
+        exit 1
+      else
+        echo "Successfully validated the deployment"
+    fi
+    if grep -q "Test Failures" <<< "$temp";
+      then
+        echo "*** VALIDATION FAILED ***"
+        exit 1
+      else
+        echo "Successfully validated the deployment"
+    fi
+
+    echo " * Isolate the Deploy ID"
+    deployId=$(echo $temp | grep -o -P "(?<=\bID:\s)(\w+)")
+    echo " - Deploy ID:" $deployId
+    echo " - Done!"
+
+    echo " * Isolate the PR number"
+    comMes=$(git log -1 --pretty=%B)
+    prNum=$(echo $comMes| grep -o -P "(?<=request ).*?(?= from)")
+    echo " - Pull Request number:" $prNum
+    echo " - Done!"
+
+    echo " * Git checkout from SIT"
+    git config --global user.email $(gitEmail)
+    git config --global user.name $(gitName)
+    # just clean temp
+    rm temp.txt
+    git checkout -b devops/$prNum | tee temp.txt
+    temp=$(sed ':a;N;$!ba;s/\n/ asdf /g' temp.txt)
+    if grep -q "error" <<< "$temp";
+      then
+        echo "*** ERRORS FOUND ON CHECKOUT, ABORTING ***"
+        echo $temp
+        exit 1
+    fi
+    echo " - Done!"
+
+    echo " * Write file, git commit & push"
+    # just clean temp
+    rm temp.txt
+    echo $deployId > $prNum
+    git add .
+    git commit -m "Created and commited file with Deploy ID." | tee temp.txt
+    git push origin devops/$prNum --force | tee temp.txt
+    temp=$(sed ':a;N;$!ba;s/\n/ asdf /g' temp.txt)
+    if grep -q "error" <<< "$temp";
+      then
+        echo "*** ERRORS FOUND PUSHING, ABORTING ***"
+        echo $temp
+        exit 1
+    fi
+    echo " - Done!"
+  displayName: 'Validation & Deploy ID storing'
