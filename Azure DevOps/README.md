@@ -1,6 +1,6 @@
 # Intro
 
-This will be a quck tutorial on how to setup CI/CD pipelines on the Azure DevOps platform. The intuition of the *validation* & *deploy* pipelines is to
+This will be a quck tutorial on how to setup CI/CD pipelines on the Azure DevOps platform. The intuition of the *validation* & *deploy* pipelines is to...
 
 1. **trigger** the validation pipeline using the Azure DevOps branch polices, when a **Pull Request** is created
 2. **validate a package** running all **local tests**
@@ -93,3 +93,20 @@ This will be a very quick reference/highlight on the YAML components, for more i
 ## Step 4: Add branch polices
 
 > This is applicable only on Azure DevOps repos
+
+Branch polices are crusial for the CI pipelines to opperate correctly. We want to block any users from directly pushing commits to all branches except the feature branches that they will develop on. Also, we can specify some hard reqirments for the Pull Requests along side the **Build Validation** to trigger the *validation* pipeline.
+
+Navigate on the Azure DevOps and click on **Branches**
+
+1. Click on the 3 dots on the right side of the branch you want to setup
+2. Click on the **Branch polices**
+3. *Optionally* set branch polices here (recomented)
+4. Scroll down to the **Build validation** section
+   1. Click on the + button to add a new pipeline run
+   2. Select one of the Validation pipelines that you have already created on step 3
+   3. Select Trigger **Automatic**
+   4. *Optionally* Policy reqirment to **Reqired** (recomented)
+   5. *Optionally* you can also set an expiration of the build here
+   6. Click **save**
+
+That is all! You are now a proud owner of a Salesforce repo with CI/CD. Create a new branch, push some changes onto it, and create a PR to test everything. 
