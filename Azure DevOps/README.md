@@ -47,10 +47,10 @@ Using the slef-signed key, we will create a *Deployment* connected app on the ta
    - Use digital signatures: mark it as checked
      - select the `server.crt` file
    - OAuth scopes
-     - Access and manage your data (api)
-     - Access your basic information (id, profile, email, address, phone)
-     - Perform requests on your behalf at any time (refresh_token, offline_access)
-     - Provide access to your data via the Web (web)
+     - Perform requests at any time (refresh_token, offline_access)
+     - Manage user data via APIs (api)
+     - Access the identity URL service (id, profile, email, address, phone)
+     - Manage user data via Web browsers (web)
    - Require Secret for Web Server Flow: mark it as checked
    - Click on **save**
 5. On the newly created app view, click on **Manage**
