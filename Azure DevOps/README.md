@@ -57,10 +57,14 @@ Using the slef-signed key, we will create a *Deployment* connected app on the ta
 6. Permitted Users: `Admin approved users are pre-authorized` then **save**
 7. On *Profiles* click on **Manage Profiles** and add the *Deployment* profile (or *System Administratior*)
 8. Create a new user named *Deployment* and assigne the *Deployment* profile (or *System Administratior*)
+9. Keep track of the client id that will be used for authoirization perpuses latter.
 
 ## Step 3: Setup the Azure pipelines
 
 At this point it expected that you have setup the git repo, branches etc. The git user that will be used should have access to the repo and can be a dummy account. In Azure:
+
+Go to Pipelines -> Libraries and create a new secure file for the `server.key` file.
+> for more info check [Use secure files](https://learn.microsoft.com/en-us/azure/devops/pipelines/library/secure-files?view=azure-devops) doc.
 
 1. Click on **Pipelines** and then click on **Create Pipeline**
 2. Select the following settings (if you have your cade on a different repo, you should manualy link it here)
@@ -74,7 +78,6 @@ At this point it expected that you have setup the git repo, branches etc. The gi
    - salesforceDevOrgInstanceURL: `https://login.salesforce.com` (or `https://test.salesforce.com` in case the target repo is a sandbox)
    - gitName: type the git username
    - gitEmail: type a git email of the above user
-   - serverKey: copy and paste the contents of the *server.key* file
 
 ### YAML notes
 
@@ -85,6 +88,7 @@ This will be a very quick reference/highlight on the YAML components, for more i
   - **branches** (include/exclude) will run the pipeline if a commit is pushed to the included branches
   - **paths** (include/exclude) will run the pipeline if a file is changed under the include paths
   - **pr** the pipeline will run when a Pull request is opened (& when a new commit on the source branch is pushed) **can be specified in the branch polices as a build validation**
+- Don't forget to setup the secure file!
 
 > more about triggers can be found in [Build Azure Repos Git or TFS Git repositories](https://docs.microsoft.com/en-us/azure/devops/pipelines/repos/azure-repos-git?view=azure-devops&tabs=yaml#ci-triggers)
 
