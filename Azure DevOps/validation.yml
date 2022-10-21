@@ -1,24 +1,20 @@
-trigger:
-  branches:
-    exclude:
-      - release/*
-      - feature/*
-      - devops/*
-      - prod
-  paths:
-    include:
-      - force-app/*
+trigger: none
 
 pool:
   vmImage: ubuntu-latest
 
+variables:
+  - group: SF-CientIds
+
 steps:
+- task: DownloadSecureFile@1
+  name: 'serverKey'
+  displayName: 'Download server.key'
+  inputs:
+    secureFile: 'server.key'
+
 - checkout: self
   persistCredentials: true
-
-- script: |
-    echo "Starting pipeline for SIT org!"
-  displayName: 'Starting point'
 
 - script: |
     echo "INSTALLING WITH NPM"
@@ -26,29 +22,44 @@ steps:
   displayName: 'NPM & Dependances initialization'
 
 - script: |
-    sfdx force:auth:jwt:grant --clientid $(salesforceDevOrgClientId) --jwtkeyfile devops/server.key --username $(salesforceDevOrgUserName) --instanceurl $(salesforceDevOrgInstanceURL) -a sitOrg
+    if [[ "$(System.PullRequest.TargetBranch)" == "refs/heads/release/sit" ]]
+    then
+      echo "Authorise SIT sandbox"
+      sfdx force:auth:jwt:grant --clientid $C_ID_SIT --jwtkeyfile $(serverKey.secureFilePath) --username $UNAME_SIT --instanceurl $SF_TEST -a org
+    elif [[ "$(System.PullRequest.TargetBranch)" == "refs/heads/release/uat" ]]
+    then
+      echo "Authorise UAT sandbox"
+      sfdx force:auth:jwt:grant --clientid $C_ID_UAT --jwtkeyfile $(serverKey.secureFilePath) --username $UNAME_UAT --instanceurl $SF_TEST -a org
+    elif [[ "$(System.PullRequest.TargetBranch)" == "refs/heads/prod" ]]
+    then
+      echo "Authorise Production!"
+      sfdx force:auth:jwt:grant --clientid $C_ID_PROD --jwtkeyfile $(serverKey.secureFilePath) --username $UNAME_PROD --instanceurl $SF_LOGIN -a org
+    fi
   displayName: 'Authorize salesforce org'
+  env:
+    C_ID_SIT: $(CLIENT_ID_SIT)
+    C_ID_UAT: $(CLIENT_ID_UAT)
+    C_ID_PROD: $(CLIENT_ID_PROD)
 
 - script: |
     sfdx force:source:convert -r ./force-app -d ./toDeploy
   displayName: 'Convert to deploy source'
 
 - script: |
-    sfdx force:mdapi:deploy -l RunLocalTests -c -d ./toDeploy -u sitOrg -w 45 | tee temp.txt
+    sfdx force:mdapi:deploy -l RunLocalTests -c -d ./toDeploy -u org -w 45 | tee temp.txt
     temp=$(sed ':a;N;$!ba;s/\n/ asdf /g' temp.txt)
     echo $temp
-
     if grep -q "Component Failures" <<< "$temp";
       then
-        echo "*** VALIDATION FAILED ***"
+        echo "*** VALIDATION FAILED :: Component Failures***"
         exit 1
       else
         echo "Successfully validated the deployment"
     fi
     if grep -q "Test Failures" <<< "$temp";
       then
-        echo "*** VALIDATION FAILED ***"
-        exit 1
+        echo "*** VALIDATION FAILED :: Test Failures ***"
+        exit 2
       else
         echo "Successfully validated the deployment"
     fi
@@ -57,41 +68,17 @@ steps:
     deployId=$(echo $temp | grep -o -P "(?<=\bID:\s)(\w+)")
     echo " - Deploy ID:" $deployId
     echo " - Done!"
+    echo "##vso[task.setvariable variable=D_ID;]$deployId"
+  displayName: 'Validation'
 
-    echo " * Isolate the PR number"
-    comMes=$(git log -1 --pretty=%B)
-    prNum=$(echo $comMes| grep -o -P "(?<=request ).*?(?= from)")
-    echo " - Pull Request number:" $prNum
+- script: |
+    git config --global user.email $GIT_EMAIL
+    git config --global user.name $GIT_UNAME
+    git fetch
+    git checkout devOps/idMap 
+    echo $D_ID > $(System.PullRequest.PullRequestId)
+    git add $(System.PullRequest.PullRequestId)
+    git commit -m "Save Deploy ID"
+    git push origin devOps/idMap
     echo " - Done!"
-
-    echo " * Git checkout from SIT"
-    git config --global user.email $(gitEmail)
-    git config --global user.name $(gitName)
-    # just clean temp
-    rm temp.txt
-    git checkout -b devops/$prNum | tee temp.txt
-    temp=$(sed ':a;N;$!ba;s/\n/ asdf /g' temp.txt)
-    if grep -q "error" <<< "$temp";
-      then
-        echo "*** ERRORS FOUND ON CHECKOUT, ABORTING ***"
-        echo $temp
-        exit 1
-    fi
-    echo " - Done!"
-
-    echo " * Write file, git commit & push"
-    # just clean temp
-    rm temp.txt
-    echo $deployId > $prNum
-    git add .
-    git commit -m "Created and commited file with Deploy ID." | tee temp.txt
-    git push origin devops/$prNum --force | tee temp.txt
-    temp=$(sed ':a;N;$!ba;s/\n/ asdf /g' temp.txt)
-    if grep -q "error" <<< "$temp";
-      then
-        echo "*** ERRORS FOUND PUSHING, ABORTING ***"
-        echo $temp
-        exit 1
-    fi
-    echo " - Done!"
-  displayName: 'Validation & Deploy ID storing'
+  displayName: 'Version Deploy ID'
