@@ -53,7 +53,7 @@ Using the slef-signed key, we will create a *Deployment* connected app on the ta
      - Manage user data via Web browsers (web)
    - Require Secret for Web Server Flow: mark it as checked
    - Click on **save**
-5. On the newly created app view, click on **Manage**
+5. On the newly created app view, click on **Manage** and **Edit policies**
 6. Permitted Users: `Admin approved users are pre-authorized` then **save**
 7. On *Profiles* click on **Manage Profiles** and add the *Deployment* profile (or *System Administratior*)
 8. Create a new user named *Deployment* and assigne the *Deployment* profile (or *System Administratior*)
